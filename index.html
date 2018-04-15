@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"> <!-- Avoid IE compatibility mode, as it breaks layout -->
+    <link rel="icon" href="favicon.ico">
+
+    <script src="3rdparty/jszip.js"></script>
+    <script src="3rdparty/FileSaver.js"></script>
+
+    <script>
+      function long2tilex(lon,zoom) { return (Math.floor((lon+180)/360*Math.pow(2,zoom))); }
+      function lat2tiley(lat,zoom)  { return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); }
+      
+      var tiles_mirrors = [
+        'https://a.tile.openstreetmap.org/',
+        'https://b.tile.openstreetmap.org/',
+        'https://c.tile.openstreetmap.org/'
+      ];
+
+      
+      
+      var calcTiles = function(){
+        var tiles=[];
+        var lng_min= parseFloat(document.getElementById("lng_min").value);
+        var lng_max= parseFloat(document.getElementById("lng_max").value);
+        var lat_min= parseFloat(document.getElementById("lat_min").value);
+        var lat_max= parseFloat(document.getElementById("lat_max").value);
+        var zoom_min = parseFloat(document.getElementById("zoom_min").value);
+        var zoom_max = parseFloat(document.getElementById("zoom_max").value);
+ 
+        for (var z=zoom_min; z<=zoom_max; z++) {
+          for (var x=long2tilex(lng_min, z); x<=long2tilex(lng_max, z); x++) {
+            for (var y=lat2tiley(lat_min, z); y>=lat2tiley(lat_max, z); y--) {
+              tiles.push({x:x, y:y, z:z});
+            }
+          }
+        }
+        if (tiles.length>1000) {
+          alert("Too many tiles to download: "+tiles.length)
+        } else {
+          getNextTile(tiles);
+        }
+      }
+        
+      
+      
+      
+      
+      var zip = new JSZip();
+      var tiles_folder = zip.folder("tiles");
+      
+      
+    var getNextTile = function(tiles){
+      document.getElementById("status").textContent=tiles.length + " tiles left";
+
+      if (tiles.length > 0) {
+        var tile = tiles.pop();
+      
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', tiles_mirrors[0]+tile.z+'/'+tile.x+'/'+tile.y+'.png', true);
+        tiles_mirrors = tiles_mirrors.splice(1).concat(tiles_mirrors)
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onload = function(e) {
+          var responseArray = new Uint8Array(this.response);
+          tiles_folder.folder(tile.z).folder(tile.x).file(tile.y+".png", responseArray, {"binary":"true"});
+          getNextTile(tiles);
+        };
+
+        xhr.send();
+      } else {
+        zip.generateAsync({type:"blob"})
+        .then(function(content) {
+          // see FileSaver.js
+          saveAs(content, "tiles.zip");
+        });
+      }
+    }
+
+    
+   
+ 
+      
+      
+      
+    </script>
+
+  </head>
+
+  <body>
+    Longitude (min): <input type="text" id="lng_min"><br>
+    Longitude (max): <input type="text" id="lng_max"><br>
+    Latitude (min): <input type="text" id="lat_min"><br>
+    Latitude (max): <input type="text" id="lat_max"><br>
+    Zoom (min): <input type="text" id="zoom_min"><br>
+    Zoom (max): <input type="text" id="zoom_max"><br>
+    <button type="button" onclick="calcTiles()">Download tiles</button> <br>
+    <span id="status"></span>
+  </body>
+</html>
